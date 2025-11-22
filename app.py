@@ -1,36 +1,28 @@
-from fastapi import FastAPI, Request
+import os
 import psycopg2
+from fastapi import FastAPI, Request
 
 app = FastAPI()
 
-# Conexión a PostgreSQL
-conn = psycopg2.connect(
-    dbname="sensorsdb",
-    user="postgres",
-    password="tu_password",  # cámbialo por el tuyo
-    host="localhost",
-    port="5432"
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL no está definida. Configura la variable de entorno antes de arrancar la app.")
+
+conn = psycopg2.connect(DATABASE_URL)
 conn.autocommit = True
 
 @app.post("/sensors")
 async def receive_sensor_data(request: Request):
     data = await request.json()
-    mac = data.get("mac")
-    queue_timestamp = data.get("queue_timestamp")
-    sat_timestamp = data.get("sat_timestamp")
-    rssi = data.get("rssi")
-    message = data.get("message")
-    nodeId = data.get("nodeId")
-    source = data.get("source")
-
     with conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO sensors(mac, queue_timestamp, sat_timestamp, rssi, message, nodeId, source, received_at)
             VALUES (%s,%s,%s,%s,%s,%s,%s,NOW())
             """,
-            (mac, queue_timestamp, sat_timestamp, rssi, message, nodeId, source)
+            (
+                data["mac"], data["queue_timestamp"], data["sat_timestamp"],
+                data["rssi"], data["message"], data["nodeId"], data["source"]
+            )
         )
-
     return {"status": "ok"}
